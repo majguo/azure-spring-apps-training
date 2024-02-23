@@ -13,11 +13,11 @@ import jakarta.enterprise.event.Observes;
 @ApplicationScoped
 public class Registration {
 
-    @ConfigProperty(name = "consul.host", defaultValue = "localhost") String host;
-    @ConfigProperty(name = "consul.port", defaultValue = "8500") int port;
+    @ConfigProperty(name = "consul.host", defaultValue = "localhost") String conulHost;
+    @ConfigProperty(name = "consul.port", defaultValue = "8500") int consulPort;
 
-    @ConfigProperty(name = "quarkus.http.port", defaultValue = "8080") int httpPort;
-    @ConfigProperty(name = "consul.app.address", defaultValue = "localhost") String address;
+    @ConfigProperty(name = "svc.host", defaultValue = "localhost") String host;
+    @ConfigProperty(name = "svc.port", defaultValue = "8080") int port;
 
     /**
      * Register city-service in Consul.
@@ -25,9 +25,9 @@ public class Registration {
      * Note: this method is called on a worker thread, and so it is allowed to block.
      */
     public void init(@Observes StartupEvent ev, Vertx vertx) {
-        ConsulClient client = ConsulClient.create(vertx, new ConsulClientOptions().setHost(host).setPort(port));
+        ConsulClient client = ConsulClient.create(vertx, new ConsulClientOptions().setHost(conulHost).setPort(consulPort));
 
         client.registerServiceAndAwait(
-                new ServiceOptions().setPort(httpPort).setAddress(address).setName("city-service"));
+                new ServiceOptions().setPort(port).setAddress(host).setName("city-service"));
     }
 }
