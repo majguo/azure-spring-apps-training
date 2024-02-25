@@ -19,6 +19,12 @@ spring:
             - Path=/CITY-SERVICE/**
           filters:
             - RewritePath=/CITY-SERVICE/(?<path>.*), /$\{path}
+        - id: weather-service
+          uri: lb://weather-service
+          predicates:
+            - Path=/WEATHER-SERVICE/**
+          filters:
+            - RewritePath=/WEATHER-SERVICE/(?<path>.*), /$\{path}
     consul:
       host: ${CONSUL_HOST:localhost}
       port: ${CONSUL_PORT:8500}
