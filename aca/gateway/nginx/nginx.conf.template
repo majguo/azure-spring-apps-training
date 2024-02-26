@@ -3,7 +3,7 @@ events {}
 http {
     server {
         # Server configuration
-        listen 8080;
+        listen ${PORT};
         add_header 'Access-Control-Allow-Origin' '*';
         
         location /CITY-SERVICE {

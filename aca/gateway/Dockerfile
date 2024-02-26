@@ -4,6 +4,7 @@ FROM nginx:$NGINX_VERSION
 COPY nginx/nginx.conf.template /etc/nginx/nginx.conf.template
 COPY nginx/entrypoint.sh /
 
+ENV PORT=8080
 ENV CITY_SERVICE_URL=http://city-service:8080
 ENV WEATHER_SERVICE_URL=http://weather-service:8080
 ENTRYPOINT ["/entrypoint.sh"]
