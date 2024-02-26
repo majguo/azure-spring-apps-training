@@ -10,6 +10,7 @@ import jakarta.ws.rs.core.Response;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 @Path("/")
 public class CityResource {
@@ -24,8 +25,8 @@ public class CityResource {
     @GET
     @Path("cities")
     @Produces(MediaType.APPLICATION_JSON)
-    public Multi<City> getCities() {
-        return City.streamAll();
+    public Multi<List<City>> getCities() {
+        return City.streamAll().map(c -> (City)c).group().intoLists().of(20);
     }
 
     @POST
