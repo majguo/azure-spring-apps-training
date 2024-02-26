@@ -4,6 +4,7 @@ http {
     server {
         # Server configuration
         listen 8080;
+        add_header 'Access-Control-Allow-Origin' '*';
         
         location /CITY-SERVICE {
             rewrite ^/CITY-SERVICE/(.*)$ /$1 break;
