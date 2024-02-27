@@ -26,6 +26,34 @@
             "metadata" :{
                 "description" : "The admin password for the Azure CosmosDB for MongoDB server."
             }
+        },
+        "mysqlServerName": {
+            "type": "string",
+            "defaultValue": "[concat('mysql', uniqueString(resourceGroup().id))]",
+            "metadata" :{
+                "description" : "The unique name for the Azure Database for MySQL Flexible server."
+            }
+        },
+        "mysqlAdminLogin": {
+            "type": "string",
+            "defaultValue" : "demoUser",
+            "metadata" :{
+                "description" : "The admin user for the Azure Database for MySQL Flexible server."
+            }
+        },
+        "mysqlAdminLoginPassword": {
+            "type": "secureString",
+            "defaultValue" : "super$ecr3t",
+            "metadata" :{
+                "description" : "The admin password for the Azure Database for MySQL Flexible server."
+            }
+        },
+        "mysqlDatabaseName": {
+            "type": "string",
+            "defaultValue" : "demoDB",
+            "metadata" :{
+                "description" : "The database name for the Azure Database for MySQL Flexible server."
+            }
         }
     },
     "variables": {
@@ -65,14 +93,12 @@
             "dependsOn": [
                 "[concat('Microsoft.DocumentDB/mongoClusters', concat('/', parameters('cosmosMongoDBServerName')))]"
             ],
-            "resources": [],
             "properties": {
                 "mode": "Incremental",
                 "parameters": {},
                 "template": {
                     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
                     "contentVersion": "1.0.0.0",
-                    "parameters": {},
                     "resources": [
                         {
                             "type": "Microsoft.DocumentDB/mongoClusters/firewallRules",
@@ -92,6 +118,87 @@
                 "name": "firewallRulesIterator"
             },
             "condition": "[greater(length(variables('firewallRules')), 0)]"
+        },
+        {
+            "apiVersion": "2021-05-01",
+            "location": "[parameters('location')]",
+            "type": "Microsoft.DBforMySQL/flexibleServers",
+            "name": "[parameters('mysqlServerName')]",
+            "identity": "[json('null')]",
+            "properties": {
+                "createMode": "Default",
+                "version": "8.0.21",
+                "administratorLogin": "[parameters('mysqlAdminLogin')]",
+                "administratorLoginPassword": "[parameters('mysqlAdminLoginPassword')]",
+                "Network": {
+                    "publicNetworkAccess": "Enabled"
+                },
+                "Storage": {
+                    "StorageSizeGB": 20,
+                    "Iops": 360,
+                    "Autogrow": "Enabled",
+                    "AutoIoScaling": "Enabled",
+                    "LogOnDisk": "Disabled"
+                },
+                "Backup": {
+                    "backupRetentionDays": 7,
+                    "geoRedundantBackup": "Disabled"
+                },
+                "availabilityZone": "",
+                "highAvailability": {
+                    "mode": "Disabled",
+                    "standbyAvailabilityZone": ""
+                },
+                "dataencryption": "[json('null')]"
+            },
+            "sku": {
+                "name": "Standard_B1ms",
+                "tier": "Burstable",
+                "capacity": 1
+            }
+        },
+        {
+            "type": "Microsoft.DBforMySQL/flexibleServers/databases",
+            "apiVersion": "2021-12-01-preview",
+            "name": "[format('{0}/{1}', parameters('mysqlServerName'), parameters('mysqlDatabaseName'))]",
+            "properties": {
+                "charset": "utf8",
+                "collation": "utf8_general_ci"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.DBforMySQL/flexibleServers', parameters('mysqlServerName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2019-08-01",
+            "name": "[concat(parameters('mysqlServerName'), concat('-firewallRules-', copyIndex()))]",
+            "copy": {
+                "count": "[if(greater(length(variables('firewallRules')), 0), length(variables('firewallRules')), 1)]",
+                "mode": "Serial",
+                "name": "firewallRulesIterator"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.DBforMySQL/flexibleServers', parameters('mysqlServerName'))]"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "resources": [
+                        {
+                            "type": "Microsoft.DBforMySQL/flexibleServers/firewallRules",
+                            "name": "[concat(parameters('mysqlServerName'),'/',variables('firewallRules')[copyIndex()].name)]",
+                            "apiVersion": "2022-01-01",
+                            "properties": {
+                                "StartIpAddress": "[variables('firewallRules')[copyIndex()].startIPAddress]",
+                                "EndIpAddress": "[variables('firewallRules')[copyIndex()].endIPAddress]"
+                            }
+                        }
+                    ]
+                }
+            }
         }
     ]
 }
