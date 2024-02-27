@@ -1,0 +1,97 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "type": "string",
+            "defaultValue" : "[resourceGroup().location]"
+        },
+        "cosmosMongoDBServerName": {
+            "type": "string",
+            "defaultValue": "[concat('cosmosmongo', uniqueString(resourceGroup().id))]",
+            "metadata" :{
+                "description" : "The unique name for the Azure CosmosDB for MongoDB server."
+            }
+        },
+        "cosmosMongoDBAdminLogin": {
+            "type": "string",
+            "defaultValue" : "demoUser",
+            "metadata" :{
+                "description" : "The admin user for the Azure CosmosDB for MongoDB server."
+            }
+        },
+        "cosmosMongoDBAdminLoginPassword": {
+            "type": "secureString",
+            "defaultValue" : "super$ecr3t",
+            "metadata" :{
+                "description" : "The admin password for the Azure CosmosDB for MongoDB server."
+            }
+        }
+    },
+    "variables": {
+        "firewallRules": [
+            {
+                "name": "AllowAllAzureServicesAndResourcesWithinAzureIps",
+                "startIPAddress": "0.0.0.0",
+                "endIPAddress": "0.0.0.0"
+            }
+        ]
+    },
+    "resources": [
+        {
+            "name": "[parameters('cosmosMongoDBServerName')]",
+            "type": "Microsoft.DocumentDB/mongoClusters",
+            "location": "[parameters('location')]",
+            "apiVersion": "2023-03-01-preview",
+            "properties": {
+                "administratorLogin": "[parameters('cosmosMongoDBAdminLogin')]",
+                "administratorLoginPassword": "[parameters('cosmosMongoDBAdminLoginPassword')]",
+                "serverVersion": "6.0",
+                "nodeGroupSpecs": [
+                    {
+                        "kind": "Shard",
+                        "nodeCount": 1,
+                        "sku": "Free",
+                        "diskSizeGB": 32,
+                        "enableHa": false
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2019-08-01",
+            "type": "Microsoft.Resources/deployments",
+            "name": "[concat(parameters('cosmosMongoDBServerName'), concat('-firewallRules-', copyIndex()))]",
+            "dependsOn": [
+                "[concat('Microsoft.DocumentDB/mongoClusters', concat('/', parameters('cosmosMongoDBServerName')))]"
+            ],
+            "resources": [],
+            "properties": {
+                "mode": "Incremental",
+                "parameters": {},
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {},
+                    "resources": [
+                        {
+                            "type": "Microsoft.DocumentDB/mongoClusters/firewallRules",
+                            "name": "[concat(parameters('cosmosMongoDBServerName'),'/',variables('firewallRules')[copyIndex()].name)]",
+                            "apiVersion": "2023-03-01-preview",
+                            "properties": {
+                                "startIpAddress": "[variables('firewallRules')[copyIndex()].startIPAddress]",
+                                "endIpAddress": "[variables('firewallRules')[copyIndex()].endIPAddress]"
+                            }
+                        }
+                    ]
+                }
+            },
+            "copy": {
+                "count": "[if(greater(length(variables('firewallRules')), 0), length(variables('firewallRules')), 1)]",
+                "mode": "Serial",
+                "name": "firewallRulesIterator"
+            },
+            "condition": "[greater(length(variables('firewallRules')), 0)]"
+        }
+    ]
+}
