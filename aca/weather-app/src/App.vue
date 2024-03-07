@@ -27,7 +27,7 @@
       color="indigo"
       app
     >
-      <span class="white--text"><a  class="white--text" href="https://github.com/majguo/azure-spring-apps-training/tree/master/aca">Azure Container Apps training</a></span>
+      <span class="white--text"><a  class="white--text" href="https://github.com/majguo/azure-spring-apps-training/tree/master/aca">Java on Azure Container Apps workshop</a></span>
     </v-footer>
   </v-app>
 </template>
