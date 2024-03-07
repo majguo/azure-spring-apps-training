@@ -4,7 +4,7 @@ You will find here a full workshop that deploys and runs several microservices o
 
 * City service: Native executable of a Reactive Quarkus microservice using Azure Cosmos DB for MongoDB (vCore) 
 * Weather service: Native executable of a Micronault microservice using Azure Database For MySQL Flexible server
-* Gateway: Nginx as a reverse proxy, calling the above services in the same ACA environment using the container app name
+* Gateway: Nginx as a reverse proxy, [calling the above services in the same ACA environment using the container app name](https://learn.microsoft.com/azure/container-apps/connect-apps?tabs=bash)
 * Weather app frontend: A simple web app using the above gateway to call the city and weather service and display the result
 
 ## Prerequisites
@@ -119,7 +119,7 @@ Run the following commands to build a native executable, build a Docker image, p
 cd $WORKING_DIR/city-service
 mvn clean package -DskipTests -Dnative -Dquarkus.native.container-build
 
-docker build -f src/main/docker/Dockerfile.native -t city-service .
+docker buildx build --platform linux/amd64 -f src/main/docker/Dockerfile.native -t city-service .
 docker tag city-service ${ACR_LOGIN_SERVER}/city-service
 docker push ${ACR_LOGIN_SERVER}/city-service
 
@@ -195,7 +195,7 @@ Run the following commands to build a Docker image, push it to the Azure Contain
 # Build and push gateway image to ACR
 cd $WORKING_DIR/gateway
 
-docker build -t gateway .
+docker buildx build --platform linux/amd64 -t gateway .
 docker tag gateway ${ACR_LOGIN_SERVER}/gateway
 docker push ${ACR_LOGIN_SERVER}/gateway
 
@@ -251,8 +251,7 @@ The source code is in the [weather-app](./weather-app/) directory. The *weather-
 # Build and push weather-app image to ACR
 cd $WORKING_DIR/weather-app
 
-docker build -t weather-app .
-# docker run -it --rm -p 8080:8080 weather-app
+docker buildx build --platform linux/amd64 -t weather-app .
 docker tag weather-app ${ACR_LOGIN_SERVER}/weather-app
 docker push ${ACR_LOGIN_SERVER}/weather-app
 
