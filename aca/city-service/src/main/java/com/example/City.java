@@ -1,8 +1,13 @@
 package com.example;
 
-import io.quarkus.mongodb.panache.reactive.ReactivePanacheMongoEntity;
+import io.quarkus.hibernate.reactive.panache.PanacheEntity;
 
-public class City extends ReactivePanacheMongoEntity {
+import jakarta.persistence.*;
+
+@Entity
+public class City extends PanacheEntity {
+
+    @Column(unique = true)
     public String name;
 
     public String getName() {

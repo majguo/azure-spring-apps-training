@@ -1,6 +1,6 @@
 package com.example;
 
-import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 
@@ -12,7 +12,7 @@ public class CityResource {
     @GET
     @Path("cities")
     @Produces(MediaType.APPLICATION_JSON)
-    public Multi<List<City>> getCities() {
-        return City.streamAll().map(c -> (City)c).group().intoLists().of(20);
+    public Uni<List<City>> getCities() {
+        return City.listAll();
     }
 }
