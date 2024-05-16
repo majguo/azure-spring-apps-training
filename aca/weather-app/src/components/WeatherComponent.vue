@@ -71,7 +71,7 @@
           Vue.axios.get(this.apiurl + '/CITY-SERVICE/cities').catch(error => {
             throw new Error(`REST endpoint error when fetching the cities: ${error}`);
           }).then(response => {
-            this.cities = response.data[0];
+            this.cities = response.data;
             let promises = [];
             this.cities.forEach((city) => {
               promises.push(Vue.axios.get(this.apiurl + '/WEATHER-SERVICE/weather/city?name=' + encodeURI(city.name)));

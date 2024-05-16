@@ -2,7 +2,7 @@
 
 You will find here a full workshop that deploys and runs several microservices on Azure Container Apps, including:
 
-* City service: Native executable of a Reactive Quarkus microservice using Azure Cosmos DB for MongoDB (vCore) 
+* City service: Native executable of a Reactive Quarkus microservice using Azure Database for PostgreSQL Flexible Server
 * Weather service: Native executable of a Micronault microservice using Azure Database For MySQL Flexible server
 * Gateway: Nginx as a reverse proxy, [calling the above services in the same ACA environment using the container app name](https://learn.microsoft.com/azure/container-apps/connect-apps?tabs=bash)
 * Weather app frontend: A simple web app using the above gateway to call the city and weather service and display the result
@@ -30,31 +30,39 @@ WORKING_DIR=$(pwd)
 
 ## Set up databases
 
-Create a resource group and deploy an Azure Cosmos DB for MongoDB (vCore) and an Azure Database for MySQL Flexible Server in it.
+Create a resource group and deploy an Azure Database for PostgreSQL Flexible Server and an Azure Database for MySQL Flexible Server in it.
 
 ```bash
 let "randomIdentifier=$RANDOM*$RANDOM"
-LOCATION=westeurope
+LOCATION=eastus
 RESOURCE_GROUP_NAME=aca-lab-rg-$randomIdentifier
-COSMOS_MONGODB_SERVER_NAME=cosmosmongo$randomIdentifier
+POSTGRESQL_SERVER_NAME=postgres$randomIdentifier
 MYSQL_SERVER_NAME=mysql$randomIdentifier
-MYSQL_DB_NAME=demodb
+DB_NAME=demodb
 DB_ADMIN=demouser
 DB_ADMIN_PWD='super$ecr3t'$RANDOM$RANDOM
 
 az group create \
     --name $RESOURCE_GROUP_NAME \
     --location $LOCATION
-az deployment group create \
+
+az postgres flexible-server create \
+    --name $POSTGRESQL_SERVER_NAME \
     --resource-group $RESOURCE_GROUP_NAME \
-    --template-file $WORKING_DIR/setup-db/azuredeploy.json \
-    --parameters cosmosMongoDBServerName=$COSMOS_MONGODB_SERVER_NAME \
-    --parameters cosmosMongoDBAdminLogin=$DB_ADMIN \
-    --parameters cosmosMongoDBAdminLoginPassword=$DB_ADMIN_PWD \
-    --parameters mysqlServerName=$MYSQL_SERVER_NAME \
-    --parameters mysqlAdminLogin=$DB_ADMIN \
-    --parameters mysqlAdminLoginPassword=$DB_ADMIN_PWD \
-    --parameters mysqlDatabaseName=$MYSQL_DB_NAME
+    --admin-user $DB_ADMIN \
+    --admin-password $DB_ADMIN_PWD \
+    --database-name $DB_NAME \
+    --public-access 0.0.0.0 \
+    --yes
+
+az mysql flexible-server create \
+    --name $MYSQL_SERVER_NAME \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --admin-user $DB_ADMIN \
+    --admin-password $DB_ADMIN_PWD \
+    --database-name $DB_NAME \
+    --public-access 0.0.0.0 \
+    --yes
 ```
 
 These databases will be used by the microservices later.
@@ -106,11 +114,11 @@ az containerapp env create \
 
 The environment creates a secure boundary around a group of your container apps. You will deploy your microservices to this environment and they can able to communicate with each other.
 
-## Build a Reactive Quarkus microservice using Azure Cosmos DB for MongoDB
+## Build a Reactive Quarkus microservice using Azure Database for PostgreSQL Flexible Server
 
-Build a reactive [Quarkus](https://quarkus.io/) microservice that references guides [GETTING STARTED WITH REACTIVE](https://quarkus.io/guides/getting-started-reactive) and [SIMPLIFIED MONGODB WITH PANACHE](https://quarkus.io/guides/mongodb-panache#reactive) and is bound to an [Azure Cosmos DB for MongoDB vCore](https://learn.microsoft.com/azure/cosmos-db/mongodb/vcore/introduction).
+Build a reactive [Quarkus](https://quarkus.io/) microservice that references guides [GETTING STARTED WITH REACTIVE](https://quarkus.io/guides/getting-started-reactive) and [SIMPLIFIED HIBERNATE REACTIVE WITH PANACHE](https://quarkus.io/guides/hibernate-reactive-panache). The service is bound to an [Azure Database for PostgreSQL Flexible Server](https://learn.microsoft.com/azure/postgresql/flexible-server/overview), and it uses [Liquibase](https://quarkus.io/guides/liquibase) to manage database schema migrations including initial data population.
 
-The source code is in the [city-service](./city-service/) directory. The *city-service* exposes a REST API to retrieve cities from a MongoDB database using reractive programming.
+The source code is in the [city-service](./city-service/) directory. The *city-service* exposes a REST API to retrieve cities from a PostgreSQL database using reractive programming.
 
 Run the following commands to build a native executable, build a Docker image, push it to the Azure Container Registry, and deploy it to the Azure Container Apps.
 
@@ -125,7 +133,11 @@ docker push ${ACR_LOGIN_SERVER}/city-service
 
 # Deploy city service to ACA
 ACA_CITY_SERVICE_NAME=city-service
-QUARKUS_MONGODB_CONNECTION_STRING="mongodb+srv://$DB_ADMIN:$DB_ADMIN_PWD@$COSMOS_MONGODB_SERVER_NAME.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000"
+export QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://${POSTGRESQL_SERVER_NAME}.postgres.database.azure.com:5432/${DB_NAME}?sslmode=require
+export QUARKUS_DATASOURCE_REACTIVE_URL=postgresql://${POSTGRESQL_SERVER_NAME}.postgres.database.azure.com:5432/${DB_NAME}?sslmode=require
+export QUARKUS_DATASOURCE_USERNAME=${DB_ADMIN}
+export QUARKUS_DATASOURCE_PASSWORD=${DB_ADMIN_PWD}
+
 az containerapp create \
     --resource-group $RESOURCE_GROUP_NAME \
     --name $ACA_CITY_SERVICE_NAME \
@@ -136,7 +148,10 @@ az containerapp create \
     --registry-password $ACR_PASSWORD \
     --target-port 8080 \
     --env-vars \
-        QUARKUS_MONGODB_CONNECTION_STRING=${QUARKUS_MONGODB_CONNECTION_STRING} \
+        QUARKUS_DATASOURCE_JDBC_URL=${QUARKUS_DATASOURCE_JDBC_URL} \
+        QUARKUS_DATASOURCE_REACTIVE_URL=${QUARKUS_DATASOURCE_REACTIVE_URL} \
+        QUARKUS_DATASOURCE_USERNAME=${QUARKUS_DATASOURCE_USERNAME} \
+        QUARKUS_DATASOURCE_PASSWORD=${QUARKUS_DATASOURCE_PASSWORD} \
     --ingress 'internal' \
     --min-replicas 1
 ```
@@ -145,7 +160,7 @@ Notice that the type of ingress is `internal` because the *city-service* is not 
 
 ## Build a Micronault microservice using Azure Database For MySQL Flexible server
 
-Build a [Micronault](https://micronaut.io/) microserver that uses JPA to access an [Azure Database for PostgreSQL - Flexible Server](https://learn.microsoft.com/azure/postgresql/flexible-server/overview).
+Build a [Micronault](https://micronaut.io/) microserver that references guide [ACCESS A DATABASE WITH MICRONAUT DATA JDBC](https://guides.micronaut.io/latest/micronaut-data-jdbc-repository-maven-java.html). The service is bound to an [Azure Database For MySQL Flexible server](https://learn.microsoft.com/azure/mysql/flexible-server/overview), and it uses [Flyway](https://guides.micronaut.io/latest/micronaut-flyway-maven-java.html) to manage database schema migrations including initial data population.
 
 The source code is in the [weather-service](./weather-service/) directory. The *weather-service* exposes a REST API to retrieve weather information for a given city from a MySQL database.
 
@@ -161,7 +176,7 @@ docker push ${ACR_LOGIN_SERVER}/weather-service
 
 # Deploy weather service to ACA
 ACA_WEATHER_SERVICE_NAME=weather-service
-DATASOURCES_DEFAULT_URL=jdbc:mysql://$MYSQL_SERVER_NAME.mysql.database.azure.com:3306/$MYSQL_DB_NAME
+DATASOURCES_DEFAULT_URL=jdbc:mysql://$MYSQL_SERVER_NAME.mysql.database.azure.com:3306/$DB_NAME
 DATASOURCES_DEFAULT_USERNAME=$DB_ADMIN
 DATASOURCES_DEFAULT_PASSWORD=$DB_ADMIN_PWD
 az containerapp create \
@@ -212,7 +227,7 @@ az containerapp create \
     --target-port 8080 \
     --env-vars \
         CITY_SERVICE_URL=http://${ACA_CITY_SERVICE_NAME} \
-	WEATHER_SERVICE_URL=http://${ACA_WEATHER_SERVICE_NAME} \
+        WEATHER_SERVICE_URL=http://${ACA_WEATHER_SERVICE_NAME} \
     --ingress 'external' \
     --min-replicas 1
 
@@ -240,6 +255,18 @@ echo $(curl $GATEWAY_URL/WEATHER-SERVICE/weather/city?name=Paris%2C%20France --s
 ```
 
 Write down the gateway URL, you will use it in the weather app frontend later.
+
+### Troubleshooting
+
+If you don't see the expected results, check `Monitoring > Log stream` in the Azure Portal to see the logs of the gateway. If you see the similar error message below, it means that the script `entrypoint.sh` under directory `gateway/nginx` has windows-style line endings.
+
+```
+/usr/bin/env: 'sh\r': No such file or directory
+/usr/bin/env: use -[v]S to pass options in shebang lines
+```
+
+You can fix it by running `dos2unix gateway/nginx/entrypoint.sh` (see [this](https://stackoverflow.com/questions/18172405/getting-error-usr-bin-env-sh-no-such-file-or-directory-when-running-command-p)) or VS Code to open the file, click on the `CRLF` button in the status bar, and select `LF` to change the line endings to Unix-style.
+Then run the above commands to build and deploy the gateway again.
 
 ## Putting it all together, a complete microservice stack
 
@@ -286,5 +313,15 @@ Congratulations! You have successfully deployed a complete microservice stack to
 Now you can clean up the resources to avoid incurring charges if they are not needed. Run the following command to delete the resource group and all resources created in this workshop.
 
 ```bash
-az group delete --name $RESOURCE_GROUP_NAME --yes --no-wait
+az group delete \
+    --name $RESOURCE_GROUP_NAME \
+    --yes --no-wait
 ```
+
+## More resources
+
+* [az postgres flexible-server create](https://learn.microsoft.com/cli/azure/postgres/flexible-server?view=azure-cli-latest#az-postgres-flexible-server-create)
+* [az mysql flexible-server create](https://learn.microsoft.com/cli/azure/mysql/flexible-server?view=azure-cli-latest#az-mysql-flexible-server-create)
+* [CONFIGURE DATA SOURCES IN QUARKUS](https://quarkus.io/guides/datasource)
+* [MUTINY - ASYNC FOR BARE MORTAL](https://quarkus.io/guides/mutiny-primer)
+* [What makes Mutiny different?](https://smallrye.io/smallrye-mutiny/latest/reference/what-makes-mutiny-different/)
