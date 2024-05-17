@@ -3,7 +3,7 @@
 You will find here a full workshop that deploys and runs several microservices on Azure Container Apps, including:
 
 * City service: Native executable of a Reactive Quarkus microservice using Azure Database for PostgreSQL Flexible Server
-* Weather service: Native executable of a Micronault microservice using Azure Database For MySQL Flexible server
+* Weather service: a Micronault microservice using Azure Database For MySQL Flexible server
 * Gateway: Nginx as a reverse proxy, [calling the above services in the same ACA environment using the container app name](https://learn.microsoft.com/azure/container-apps/connect-apps?tabs=bash)
 * Weather app frontend: A simple web app using the above gateway to call the city and weather service and display the result
 
@@ -26,6 +26,41 @@ Prepare the source code of samples by cloning the repository and navigating to t
 git clone https://github.com/majguo/azure-spring-apps-training.git
 cd azure-spring-apps-training/aca
 WORKING_DIR=$(pwd)
+```
+
+## Azure CLI setup
+
+Check your Azure CLI version and upgrade to the required version if needed.
+
+```bash
+az --version
+az upgrade
+```
+
+Install or update the Azure Application Insights and Azure Container Apps extensions.
+
+```bash
+az extension add -n application-insights --upgrade --allow-preview true
+az extension add --name containerapp --upgrade --allow-preview true
+```
+
+Sign in to Azure CLI if you haven't already done so.
+
+```bash
+az login
+```
+
+Set the default subscription to use.
+
+```bash
+az account set --subscription "<subscription-id>"
+```
+
+Register the `Microsoft.App` and `Microsoft.OperationalInsights` namespaces if they're not already registered in your Azure subscription.
+
+```bash
+az provider register --namespace Microsoft.App
+az provider register --namespace Microsoft.OperationalInsights
 ```
 
 ## Set up databases
@@ -93,9 +128,6 @@ ACR_PASSWORD=$(az acr credential show \
     --name $REGISTRY_NAME \
     --query 'passwords[0].value' \
     --output tsv | tr -d '\r')
-docker login $ACR_LOGIN_SERVER \
-    -u $ACR_USER_NAME \
-    -p $ACR_PASSWORD
 ```
 
 You will build application images and push them to this registry.
@@ -108,11 +140,54 @@ Create an Azure Container Apps environment.
 ACA_ENV=acaenv$randomIdentifier
 az containerapp env create \
     --resource-group $RESOURCE_GROUP_NAME \
-    --location westeurope \
+    --location $LOCATION \
     --name $ACA_ENV
 ```
 
 The environment creates a secure boundary around a group of your container apps. You will deploy your microservices to this environment and they can able to communicate with each other.
+
+## Collect and read OpenTelemetry data in Azure Container Apps 
+
+OpenTelemetry agents live within your container app environment. You configure agent settings through the Azure CLI.
+
+The managed OpenTelemetry agent accepts the following destinations:
+
+* Azure Monitor Application Insights
+* Datadog
+* Any OTLP endpoint (For example: New Relic or Honeycomb)
+
+In this tutorial, you use Azure Monitor Application Insights as the destination.
+
+First, create an Azure Application Insights resource to receive OpenTelemetry data.
+
+```bash
+logAnalyticsWorkspace=$(az monitor log-analytics workspace list \
+    -g $RESOURCE_GROUP_NAME \
+    --query "[0].name" -o tsv | tr -d '\r\n')
+
+APP_INSIGHTS=appinsights$randomIdentifier
+az monitor app-insights component create \
+    --app $APP_INSIGHTS \
+    -g $RESOURCE_GROUP_NAME \
+    -l $LOCATION \
+    --workspace $logAnalyticsWorkspace
+```
+
+Next, enable OpenTelemetry for the Azure Container Apps environment and configure it to send data to the Azure Application Insights resource.
+
+```bash
+appInsightsConn=$(az monitor app-insights component show \
+    --app $APP_INSIGHTS \
+    -g $RESOURCE_GROUP_NAME \
+    --query 'connectionString' -o tsv)
+
+az containerapp env telemetry app-insights set \
+  --name $ACA_ENV \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --connection-string $appInsightsConn \
+  --enable-open-telemetry-logs true \
+  --enable-open-telemetry-traces true
+```
 
 ## Build a Reactive Quarkus microservice using Azure Database for PostgreSQL Flexible Server
 
@@ -129,6 +204,10 @@ mvn clean package -DskipTests -Dnative -Dquarkus.native.container-build
 
 docker buildx build --platform linux/amd64 -f src/main/docker/Dockerfile.native -t city-service .
 docker tag city-service ${ACR_LOGIN_SERVER}/city-service
+cd $WORKING_DIR
+docker login $ACR_LOGIN_SERVER \
+    -u $ACR_USER_NAME \
+    -p $ACR_PASSWORD
 docker push ${ACR_LOGIN_SERVER}/city-service
 
 # Deploy city service to ACA
@@ -164,21 +243,26 @@ Build a [Micronault](https://micronaut.io/) microserver that references guide [A
 
 The source code is in the [weather-service](./weather-service/) directory. The *weather-service* exposes a REST API to retrieve weather information for a given city from a MySQL database.
 
-Run the following commands to build a native executable, build a Docker image, push it to the Azure Container Registry, and deploy it to the Azure Container Apps.
+Run the following commands to build the jar package, build a Docker image, push it to the Azure Container Registry, and deploy it to the Azure Container Apps.
 
 ```bash
 # Build and push weather-service image to ACR
 cd $WORKING_DIR/weather-service
-mvn clean package -Dpackaging=docker-native -Pgraalvm -DskipTests=true
+mvn clean package -DskipTests=true
 
+docker buildx build --platform linux/amd64 -f Dockerfile-otel-agent -t weather-service .
 docker tag weather-service ${ACR_LOGIN_SERVER}/weather-service
+cd $WORKING_DIR
+docker login $ACR_LOGIN_SERVER \
+    -u $ACR_USER_NAME \
+    -p $ACR_PASSWORD
 docker push ${ACR_LOGIN_SERVER}/weather-service
 
 # Deploy weather service to ACA
 ACA_WEATHER_SERVICE_NAME=weather-service
-DATASOURCES_DEFAULT_URL=jdbc:mysql://$MYSQL_SERVER_NAME.mysql.database.azure.com:3306/$DB_NAME
-DATASOURCES_DEFAULT_USERNAME=$DB_ADMIN
-DATASOURCES_DEFAULT_PASSWORD=$DB_ADMIN_PWD
+export DATASOURCES_DEFAULT_URL=jdbc:mysql://$MYSQL_SERVER_NAME.mysql.database.azure.com:3306/$DB_NAME
+export DATASOURCES_DEFAULT_USERNAME=$DB_ADMIN
+export DATASOURCES_DEFAULT_PASSWORD=$DB_ADMIN_PWD
 az containerapp create \
     --resource-group $RESOURCE_GROUP_NAME \
     --name $ACA_WEATHER_SERVICE_NAME \
@@ -212,6 +296,10 @@ cd $WORKING_DIR/gateway
 
 docker buildx build --platform linux/amd64 -t gateway .
 docker tag gateway ${ACR_LOGIN_SERVER}/gateway
+cd $WORKING_DIR
+docker login $ACR_LOGIN_SERVER \
+    -u $ACR_USER_NAME \
+    -p $ACR_PASSWORD
 docker push ${ACR_LOGIN_SERVER}/gateway
 
 # Deploy gateway
