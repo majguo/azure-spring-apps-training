@@ -1,0 +1,47 @@
+services:
+  weather-service:
+    image: weather-service:latest
+    environment:
+      OTEL_SERVICE_NAME: "weather-service"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://collector:4317"
+      # The default protocol is http
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      # Logs are disabled by default
+      OTEL_LOGS_EXPORTER: "otlp"
+      DATASOURCES_DEFAULT_URL: jdbc:mysql://mysql:3306/weather
+      DATASOURCES_DEFAULT_USERNAME: myuser
+      DATASOURCES_DEFAULT_PASSWORD: mypassword
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      collector:
+        condition: service_started
+  collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    volumes:
+      - ./collector-config.yaml:/collector-config.yaml
+    command: ["--config=/collector-config.yaml"]
+    expose:
+      - "4317"
+      - "4318"
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+  mysql:
+    image: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: weather
+      MYSQL_USER: myuser
+      MYSQL_PASSWORD: mypassword
+    expose:
+      - "3306"
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

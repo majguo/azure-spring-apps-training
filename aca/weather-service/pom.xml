@@ -17,7 +17,6 @@
     <jdk.version>17</jdk.version>
     <release.version>17</release.version>
     <micronaut.version>4.4.2</micronaut.version>
-    <micronaut.test.resources.enabled>true</micronaut.test.resources.enabled>
     <micronaut.runtime>netty</micronaut.runtime>
     <micronaut.aot.enabled>false</micronaut.aot.enabled>
     <micronaut.aot.packageName>com.example.aot.generated</micronaut.aot.packageName>
@@ -65,21 +64,6 @@
     <dependency>
       <groupId>jakarta.validation</groupId>
       <artifactId>jakarta.validation-api</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.micronaut.tracing</groupId>
-      <artifactId>micronaut-tracing-opentelemetry-http</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.opentelemetry.instrumentation</groupId>
-      <artifactId>opentelemetry-jdbc</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.opentelemetry</groupId>
-      <artifactId>opentelemetry-exporter-otlp</artifactId>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -191,10 +175,6 @@
                   <artifactId>micronaut-inject</artifactId>
                 </exclusion>
               </exclusions>
-            </path>
-            <path>
-              <groupId>io.micronaut.tracing</groupId>
-              <artifactId>micronaut-tracing-opentelemetry-annotation</artifactId>
             </path>
           </annotationProcessorPaths>
           <compilerArgs>
