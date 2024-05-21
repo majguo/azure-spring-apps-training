@@ -2,9 +2,9 @@
 
 You will find here a full workshop that deploys and runs several microservices on Azure Container Apps, including:
 
-* City service: Native executable of a Reactive Quarkus microservice using Azure Database for PostgreSQL Flexible Server
-* Weather service: a Micronault microservice using Azure Database For MySQL Flexible server
-* Gateway: Nginx as a reverse proxy, [calling the above services in the same ACA environment using the container app name](https://learn.microsoft.com/azure/container-apps/connect-apps?tabs=bash)
+* City service: Native executable of a Reactive Quarkus microservice using Azure Database for PostgreSQL Flexible Server with OpenTelemetry instrumentation
+* Weather service: A Micronault microservice using Azure Database For MySQL Flexible server with OpenTelemetry instrumentation
+* Gateway: Nginx as a reverse proxy, [calling the above services in the same ACA environment using the container app name](https://learn.microsoft.com/azure/container-apps/connect-apps?tabs=bash) with OpenTelemetry instrumentation
 * Weather app frontend: A simple web app using the above gateway to call the city and weather service and display the result
 
 ## Prerequisites
@@ -191,7 +191,7 @@ az containerapp env telemetry app-insights set \
 
 ## Build a Reactive Quarkus microservice using Azure Database for PostgreSQL Flexible Server
 
-Build a reactive [Quarkus](https://quarkus.io/) microservice that references guides [GETTING STARTED WITH REACTIVE](https://quarkus.io/guides/getting-started-reactive) and [SIMPLIFIED HIBERNATE REACTIVE WITH PANACHE](https://quarkus.io/guides/hibernate-reactive-panache). The service is bound to an [Azure Database for PostgreSQL Flexible Server](https://learn.microsoft.com/azure/postgresql/flexible-server/overview), and it uses [Liquibase](https://quarkus.io/guides/liquibase) to manage database schema migrations including initial data population.
+Build a reactive [Quarkus](https://quarkus.io/) microservice that references guides [GETTING STARTED WITH REACTIVE](https://quarkus.io/guides/getting-started-reactive) and [SIMPLIFIED HIBERNATE REACTIVE WITH PANACHE](https://quarkus.io/guides/hibernate-reactive-panache). The service is bound to an [Azure Database for PostgreSQL Flexible Server](https://learn.microsoft.com/azure/postgresql/flexible-server/overview), and it uses [Liquibase](https://quarkus.io/guides/liquibase) to manage database schema migrations including initial data population. Furthermore, it utilizes OpenTelemetry to instrument the application and send distributed tracing to OpenTelemetry collector, see [USING OPENTELEMETRY](https://quarkus.io/guides/opentelemetry) for more information.
 
 The source code is in the [city-service](./city-service/) directory. The *city-service* exposes a REST API to retrieve cities from a PostgreSQL database using reractive programming.
 
@@ -239,7 +239,7 @@ Notice that the type of ingress is `internal` because the *city-service* is not 
 
 ## Build a Micronault microservice using Azure Database For MySQL Flexible server
 
-Build a [Micronault](https://micronaut.io/) microserver that references guide [ACCESS A DATABASE WITH MICRONAUT DATA JDBC](https://guides.micronaut.io/latest/micronaut-data-jdbc-repository-maven-java.html). The service is bound to an [Azure Database For MySQL Flexible server](https://learn.microsoft.com/azure/mysql/flexible-server/overview), and it uses [Flyway](https://guides.micronaut.io/latest/micronaut-flyway-maven-java.html) to manage database schema migrations including initial data population.
+Build a [Micronault](https://micronaut.io/) microserver that references guide [ACCESS A DATABASE WITH MICRONAUT DATA JDBC](https://guides.micronaut.io/latest/micronaut-data-jdbc-repository-maven-java.html). The service is bound to an [Azure Database For MySQL Flexible server](https://learn.microsoft.com/azure/mysql/flexible-server/overview), and it uses [Flyway](https://guides.micronaut.io/latest/micronaut-flyway-maven-java.html) to manage database schema migrations including initial data population. Furthermore, it utilizes OpenTelemetry java agent to automatically capture telemetry data and send to OpenTelemetry collector, see [this comment](https://github.com/micronaut-projects/micronaut-tracing/issues/388#issuecomment-1810802923) for more information.
 
 The source code is in the [weather-service](./weather-service/) directory. The *weather-service* exposes a REST API to retrieve weather information for a given city from a MySQL database.
 
@@ -284,7 +284,7 @@ Notice that the type of ingress is `internal` because the *weather-service* is n
 
 ## Build a gateway
 
-Build a gateway that uses [NGINX Reverse Proxy](https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/) to route HTTP requests to internal services running in the same Azure Container Apps environment.
+Build a gateway that uses [NGINX Reverse Proxy](https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/) to route HTTP requests to internal services running in the same Azure Container Apps environment. Furthermore, it utilizes native OpenTelemetry module to capture telemetry data and send to OpenTelemetry collector, see [NGINX Native OpenTelemetryModule](https://github.com/nginxinc/nginx-otel) for more information.
 
 The source code is in the [gateway](./gateway/) directory. The *gateway* listens on port `8080` and routes requests to the *city-service* and *weather-service*.
 
@@ -368,6 +368,10 @@ cd $WORKING_DIR/weather-app
 
 docker buildx build --platform linux/amd64 -t weather-app .
 docker tag weather-app ${ACR_LOGIN_SERVER}/weather-app
+cd $WORKING_DIR
+docker login $ACR_LOGIN_SERVER \
+    -u $ACR_USER_NAME \
+    -p $ACR_PASSWORD
 docker push ${ACR_LOGIN_SERVER}/weather-app
 
 # Deploy weather-app to ACA
@@ -394,6 +398,16 @@ echo "Weather app URL: $WEATHER_APP_URL"
 
 Open the weather app URL in a web browser, enter the gateway URL you wrote down before for **Gateway URL**, and select **Go**. You should see the weather for the cities.
 
+## View telemetry data in Azure Monitor Application Insights
+
+Open the Azure Portal, navigate to the Application Insights resource you created, and open the following views to see the telemetry data collected by the OpenTelemetry agents from the microservices you deployed:
+
+* Investigate > Application map
+* Investigate > Transactions
+* Investigate > Failures
+* Investigate > Performance
+* Monitoring > Logs > requests
+
 ## Clean up
 
 Congratulations! You have successfully deployed a complete microservice stack to Azure Container Apps. 
@@ -413,3 +427,8 @@ az group delete \
 * [CONFIGURE DATA SOURCES IN QUARKUS](https://quarkus.io/guides/datasource)
 * [MUTINY - ASYNC FOR BARE MORTAL](https://quarkus.io/guides/mutiny-primer)
 * [What makes Mutiny different?](https://smallrye.io/smallrye-mutiny/latest/reference/what-makes-mutiny-different/)
+* [Collect and read OpenTelemetry data in Azure Container Apps](https://learn.microsoft.com/azure/container-apps/opentelemetry-agents?tabs=azure-cli)
+* [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/deployment/agent/)
+* [Automatic Instrumentation](https://opentelemetry.io/docs/languages/java/automatic/)
+* [Enable Azure Monitor OpenTelemetry for .NET, Node.js, Python, and Java applications](https://learn.microsoft.com/azure/azure-monitor/app/opentelemetry-enable?tabs=aspnetcore)
+* [USE OPENTELEMETRY WITH JAEGER AND THE MICRONAUT FRAMEWORK FOR MICROSERVICE DISTRIBUTED TRACING](https://guides.micronaut.io/latest/micronaut-microservices-distributed-tracing-jaeger-opentelemetry-maven-java.html)
