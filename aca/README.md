@@ -63,6 +63,18 @@ az provider register --namespace Microsoft.App
 az provider register --namespace Microsoft.OperationalInsights
 ```
 
+## Automate the deployment
+
+If you want to automate the deployment, you can use the following script. It will create all the resources needed for the workshop, build and deploy the microservices to Azure Container Apps.
+
+```bash
+./all-in-one.sh
+```
+
+Then you can skip the rest of the workshop and go directly to the [View telemetry data in Azure Monitor Application Insights](#view-telemetry-data-in-azure-monitor-application-insights) section.
+
+If you want a step-by-step guide with more details, you can follow the rest of the workshop.
+
 ## Set up databases
 
 Create a resource group and deploy an Azure Database for PostgreSQL Flexible Server and an Azure Database for MySQL Flexible Server in it.
@@ -403,9 +415,10 @@ Open the weather app URL in a web browser, enter the gateway URL you wrote down 
 Open the Azure Portal, navigate to the Application Insights resource you created, and open the following views to see the telemetry data collected by the OpenTelemetry agents from the microservices you deployed:
 
 * Investigate > Application map
-* Investigate > Transactions
+* Investigate > Transaction search
 * Investigate > Failures
 * Investigate > Performance
+* Monitoring > Logs > traces
 * Monitoring > Logs > requests
 
 ## Clean up
