@@ -3,7 +3,7 @@
 You will find here a full workshop that deploys and runs several microservices on Azure Container Apps, including:
 
 * City service: Native executable of a Reactive Quarkus microservice using Azure Database for PostgreSQL Flexible Server with OpenTelemetry instrumentation
-* Weather service: A Micronault microservice using Azure Database For MySQL Flexible server with OpenTelemetry instrumentation
+* Weather service: A Micronaut microservice using Azure Database For MySQL Flexible server with OpenTelemetry instrumentation
 * Gateway: Nginx as a reverse proxy, [calling the above services in the same ACA environment using the container app name](https://learn.microsoft.com/azure/container-apps/connect-apps?tabs=bash) with OpenTelemetry instrumentation
 * Weather app frontend: A simple web app using the above gateway to call the city and weather service and display the result
 
@@ -237,9 +237,9 @@ az containerapp create \
 
 Notice that the type of ingress is `internal` because the *city-service* is not intended to be accessed directly from the internet, instead, it will be accessed by a gateway later.
 
-## Build a Micronault microservice using Azure Database For MySQL Flexible server
+## Build a Micronaut microservice using Azure Database For MySQL Flexible server
 
-Build a [Micronault](https://micronaut.io/) microserver that references guide [ACCESS A DATABASE WITH MICRONAUT DATA JDBC](https://guides.micronaut.io/latest/micronaut-data-jdbc-repository-maven-java.html). The service is bound to an [Azure Database For MySQL Flexible server](https://learn.microsoft.com/azure/mysql/flexible-server/overview), and it uses [Flyway](https://guides.micronaut.io/latest/micronaut-flyway-maven-java.html) to manage database schema migrations including initial data population. Furthermore, it utilizes OpenTelemetry java agent to automatically capture telemetry data and send to OpenTelemetry collector, see [this comment](https://github.com/micronaut-projects/micronaut-tracing/issues/388#issuecomment-1810802923) for more information.
+Build a [Micronaut](https://micronaut.io/) microserver that references guide [ACCESS A DATABASE WITH MICRONAUT DATA JDBC](https://guides.micronaut.io/latest/micronaut-data-jdbc-repository-maven-java.html). The service is bound to an [Azure Database For MySQL Flexible server](https://learn.microsoft.com/azure/mysql/flexible-server/overview), and it uses [Flyway](https://guides.micronaut.io/latest/micronaut-flyway-maven-java.html) to manage database schema migrations including initial data population. Furthermore, it utilizes OpenTelemetry java agent to automatically capture telemetry data and send to OpenTelemetry collector, see [this comment](https://github.com/micronaut-projects/micronaut-tracing/issues/388#issuecomment-1810802923) for more information.
 
 The source code is in the [weather-service](./weather-service/) directory. The *weather-service* exposes a REST API to retrieve weather information for a given city from a MySQL database.
 
